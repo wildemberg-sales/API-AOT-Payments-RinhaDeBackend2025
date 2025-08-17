@@ -12,7 +12,7 @@ namespace ApiPaymets.Database.CompiledModels
     public partial class ApiDbContextModel
     {
         private ApiDbContextModel()
-            : base(skipDetectChanges: false, modelId: new Guid("a7232cd6-6e75-4577-8b0d-8196e6fe3754"), entityTypeCount: 1)
+            : base(skipDetectChanges: false, modelId: new Guid("fa666356-aee8-43d2-9821-97ee87e2b316"), entityTypeCount: 1)
         {
         }
 

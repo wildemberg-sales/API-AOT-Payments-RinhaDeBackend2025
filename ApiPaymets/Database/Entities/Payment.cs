@@ -3,13 +3,13 @@
     public class Payment
     {
         public Guid CorrelationId { get; set; }
-        public float Amount { get; set; }
+        public decimal Amount { get; set; }
         public DateTime CreatedAt { get; set; }
         public bool IsFallback { get; set; } = false;
 
         public Payment() { }
 
-        public static Payment Create(Guid correlationId, float amount, DateTime? createdAt, bool? isFallback)
+        public static Payment Create(Guid correlationId, decimal amount, DateTime? createdAt, bool? isFallback)
         {
             return new()
             {

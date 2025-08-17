@@ -64,7 +64,7 @@ builder.Services.Configure<PaymentsApiExternalSettings>(
 var retryPolicy = HttpPolicyExtensions
     .HandleTransientHttpError() // Lida com erros de rede, 5xx e 408
     .WaitAndRetryAsync(
-        Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromSeconds(1), retryCount: 3)
+        Backoff.DecorrelatedJitterBackoffV2(medianFirstRetryDelay: TimeSpan.FromMilliseconds(100), retryCount: 3)
     );
 
 // 2. Política de Circuit Breaker: Abre o circuito após 5 falhas consecutivas
@@ -72,10 +72,9 @@ var circuitBreakerPolicy = HttpPolicyExtensions
     .HandleTransientHttpError()
     .CircuitBreakerAsync(
         handledEventsAllowedBeforeBreaking: 5,
-        durationOfBreak: TimeSpan.FromSeconds(1)
+        durationOfBreak: TimeSpan.FromMilliseconds(200)
     );
 
-// 3. Registra o HttpClient para a API Externa com as políticas
 builder.Services.AddHttpClient("PaymentsExternal", (serviceProvider, client) =>
 {
     var settings = serviceProvider.GetRequiredService<IOptions<PaymentsApiExternalSettings>>().Value;
@@ -94,7 +93,7 @@ app.MapPost("/payments", (PaymentPayloadModel payment, PaymentChannel channel) =
     return Results.Created();
 });
 
-app.MapGet("/payments-summary", async (DateTime from, DateTime to, IPaymentService service) => 
+app.MapGet("/payments-summary", async (DateTime? from, DateTime? to, IPaymentService service) => 
 {
     var res = await service.GetPaymentsSummaryAsync(from, to);
     return Results.Ok(res);

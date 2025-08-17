@@ -35,10 +35,10 @@ namespace ApiPaymets.Database.CompiledModels
 
             var amount = runtimeEntityType.AddProperty(
                 "Amount",
-                typeof(float),
+                typeof(decimal),
                 propertyInfo: typeof(Payment).GetProperty("Amount", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(Payment).GetField("<Amount>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
-                sentinel: 0f);
+                sentinel: 0m);
             amount.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var createdAt = runtimeEntityType.AddProperty(

@@ -19,16 +19,6 @@ namespace ApiPayment.Services.Impl
 
         public async Task<bool> CreatePaymentAsync(Payment payment)
         {
-            //try
-            //{
-            //    _context.Payments.Add(payment);
-            //    await _context.SaveChangesAsync();
-            //}
-            //catch (Exception ex)
-            //{
-            //    _logger.LogError($"Error in creation: {ex.Message}");
-            //    return false;
-            //}
 
             try
             {
@@ -45,8 +35,6 @@ namespace ApiPayment.Services.Impl
             }
             catch (Exception ex)
             {
-                // O Dapper lançará uma exceção se a chave única 'CorrelationId' for violada,
-                // o que mantém sua lógica de idempotência.
                 _logger.LogError(ex, "Falha ao criar pagamento {CorrelationId} com Dapper.", payment.CorrelationId);
                 return false;
             }
@@ -63,8 +51,8 @@ namespace ApiPayment.Services.Impl
                     COALESCE(COUNT(*) FILTER (WHERE ""IsFallback""), 0) AS ""FallbackTotalRequest"",
                     COALESCE(SUM(""Amount"") FILTER (WHERE ""IsFallback""), 0) AS ""FallbackTotalAmount""
                 FROM ""Payments""
-                WHERE (@from IS NULL OR ""CreatedAt"" >= @from)
-                  AND (@to IS NULL OR ""CreatedAt"" <= @to);
+                WHERE (""CreatedAt"" >= @from OR @from IS NULL)
+                AND (""CreatedAt"" <= @to OR @to IS NULL);
             ";
 
             var summaryResult = await connection.QuerySingleAsync<SummaryResult>(sql, new { from, to });
@@ -72,30 +60,10 @@ namespace ApiPayment.Services.Impl
             // 4. Construa a resposta final a partir dos 4 números que o banco de dados nos deu.
             PaymentSummaryResponse response = PaymentSummaryResponse.Create(
                 defaultTotalRequest: (int)summaryResult.DefaultTotalRequest,
-                defaultTotalAmount: (float)Math.Round(summaryResult.DefaultTotalAmount, 2),
+                defaultTotalAmount: Math.Round(summaryResult.DefaultTotalAmount, 2),
                 fallbackTotalRequest: (int)summaryResult.FallbackTotalRequest,
-                fallbackTotalAmount: (float)Math.Round(summaryResult.FallbackTotalAmount, 2)
+                fallbackTotalAmount: Math.Round(summaryResult.FallbackTotalAmount, 2)
             );
-            //var allPayments = await _context.Payments.ToListAsync();
-
-            //IEnumerable<Payment> filteredPayments = allPayments;
-            //if (from.HasValue)
-            //{
-            //    filteredPayments = filteredPayments.Where(p => p.CreatedAt >= from.Value);
-            //}
-            //if (to.HasValue)
-            //{
-            //    filteredPayments = filteredPayments.Where(p => p.CreatedAt <= to.Value);
-            //}
-
-            //var finalPaymentsList = filteredPayments.ToList();
-
-            //var response = PaymentSummaryResponse.Create(
-            //    defaultTotalRequest: finalPaymentsList.Count(p => !p.IsFallback),
-            //    defaultTotalAmount: (float)Math.Round(finalPaymentsList.Where(p => !p.IsFallback).Sum(p => p.Amount), 2),
-            //    fallbackTotalRequest: finalPaymentsList.Count(p => p.IsFallback),
-            //    fallbackTotalAmount: (float)Math.Round(finalPaymentsList.Where(p => p.IsFallback).Sum(p => p.Amount), 2)
-            //);
 
             return response;
         }

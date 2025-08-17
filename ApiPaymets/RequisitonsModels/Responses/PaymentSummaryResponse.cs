@@ -11,7 +11,7 @@ namespace ApiPaymets.RequisitonsModels.Responses
         public PaymentSummaryData Fallback { get; set; } = new();
         public PaymentSummaryResponse() { }
 
-        public static PaymentSummaryResponse Create(int defaultTotalRequest, float defaultTotalAmount, int fallbackTotalRequest, float fallbackTotalAmount)
+        public static PaymentSummaryResponse Create(int defaultTotalRequest, decimal defaultTotalAmount, int fallbackTotalRequest, decimal fallbackTotalAmount)
         {
             return new()
             {
@@ -31,7 +31,7 @@ namespace ApiPaymets.RequisitonsModels.Responses
 
     public class PaymentSummaryData
     {
-        public int totalRequests { get; set; }
-        public float totalAmount { get; set; }
+        public decimal totalRequests { get; set; }
+        public decimal totalAmount { get; set; }
     }
 }
