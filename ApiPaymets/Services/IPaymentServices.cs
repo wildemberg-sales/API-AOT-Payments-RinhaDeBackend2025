@@ -7,6 +7,6 @@ namespace ApiPayment.Services
     {
         Task<bool> CreatePaymentAsync(Payment payment);
 
-        Task<PaymentSummaryResponse?> GetPaymentsSummaryAsync(DateTime? from, DateTime? to);
+        Task<PaymentSummaryResponse> GetPaymentsSummaryAsync(DateTime? from, DateTime? to);
     }
 }

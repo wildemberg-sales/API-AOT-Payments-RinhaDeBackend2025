@@ -1,7 +1,10 @@
 ﻿using ApiPaymets.Database;
 using ApiPaymets.Database.Entities;
 using ApiPaymets.RequisitonsModels.Responses;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace ApiPayment.Services.Impl
 {
@@ -32,41 +35,54 @@ namespace ApiPayment.Services.Impl
             return true;
         }
 
-        public async Task<PaymentSummaryResponse?> GetPaymentsSummaryAsync(DateTime? from = null, DateTime? to = null)
+        public async Task<PaymentSummaryResponse> GetPaymentsSummaryAsync(DateTime? from = null, DateTime? to = null)
         {
-            var query = _context.Payments.AsQueryable();
+            var connection = _context.Database.GetDbConnection();
 
-            if (from.HasValue)
-                query = query.Where(p => p.CreatedAt >= from);
+            var sql = @"
+                SELECT
+                    COALESCE(COUNT(*) FILTER (WHERE NOT ""IsFallback""), 0) AS ""DefaultTotalRequest"",
+                    COALESCE(SUM(""Amount"") FILTER (WHERE NOT ""IsFallback""), 0) AS ""DefaultTotalAmount"",
+                    COALESCE(COUNT(*) FILTER (WHERE ""IsFallback""), 0) AS ""FallbackTotalRequest"",
+                    COALESCE(SUM(""Amount"") FILTER (WHERE ""IsFallback""), 0) AS ""FallbackTotalAmount""
+                FROM ""Payments""
+                WHERE (@from IS NULL OR ""CreatedAt"" >= @from)
+                  AND (@to IS NULL OR ""CreatedAt"" <= @to);
+            ";
 
-            if (to.HasValue)
-                query = query.Where(p => p.CreatedAt <= to);
+            var summaryResult = await connection.QuerySingleAsync<SummaryResult>(sql, new { from, to });
 
-            var summaryData = await query
-            .GroupBy(p => 1)
-            .Select(g => new
-            {
-                DefaultTotalRequest = g.Count(p => !p.IsFallback),
-                FallbackTotalRequest = g.Count(p => p.IsFallback),
-                DefaultTotalAmount = g.Where(p => !p.IsFallback).Sum(p => p.Amount),
-                FallbackTotalAmount = g.Where(p => p.IsFallback).Sum(p => p.Amount)
-            })
-            .FirstOrDefaultAsync();
-
-            if (summaryData == null)
-            {
-                _logger.LogError("Not payments found in database");
-                return PaymentSummaryResponse.Create(0, 0, 0, 0);
-            }
-
+            // 4. Construa a resposta final a partir dos 4 números que o banco de dados nos deu.
             PaymentSummaryResponse response = PaymentSummaryResponse.Create(
-                defaultTotalRequest: summaryData.DefaultTotalRequest,
-                defaultTotalAmount: (float)Math.Round(summaryData.DefaultTotalAmount),
-                fallbackTotalRequest: summaryData.FallbackTotalRequest,
-                fallbackTotalAmount: (float)Math.Round(summaryData.FallbackTotalAmount)
+                defaultTotalRequest: (int)summaryResult.DefaultTotalRequest,
+                defaultTotalAmount: (float)Math.Round(summaryResult.DefaultTotalAmount, 2),
+                fallbackTotalRequest: (int)summaryResult.FallbackTotalRequest,
+                fallbackTotalAmount: (float)Math.Round(summaryResult.FallbackTotalAmount, 2)
             );
+            //var allPayments = await _context.Payments.ToListAsync();
+
+            //IEnumerable<Payment> filteredPayments = allPayments;
+            //if (from.HasValue)
+            //{
+            //    filteredPayments = filteredPayments.Where(p => p.CreatedAt >= from.Value);
+            //}
+            //if (to.HasValue)
+            //{
+            //    filteredPayments = filteredPayments.Where(p => p.CreatedAt <= to.Value);
+            //}
+
+            //var finalPaymentsList = filteredPayments.ToList();
+
+            //var response = PaymentSummaryResponse.Create(
+            //    defaultTotalRequest: finalPaymentsList.Count(p => !p.IsFallback),
+            //    defaultTotalAmount: (float)Math.Round(finalPaymentsList.Where(p => !p.IsFallback).Sum(p => p.Amount), 2),
+            //    fallbackTotalRequest: finalPaymentsList.Count(p => p.IsFallback),
+            //    fallbackTotalAmount: (float)Math.Round(finalPaymentsList.Where(p => p.IsFallback).Sum(p => p.Amount), 2)
+            //);
 
             return response;
         }
+
     }
+    public record SummaryResult(long DefaultTotalRequest,decimal DefaultTotalAmount,long FallbackTotalRequest,decimal FallbackTotalAmount);
 }

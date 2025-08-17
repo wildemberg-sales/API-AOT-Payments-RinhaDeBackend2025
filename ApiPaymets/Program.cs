@@ -8,13 +8,28 @@ using ApiPaymets.Clients;
 using ApiPaymets.Clients.Impl;
 using ApiPaymets.Configurations;
 using ApiPaymets.Database;
+using ApiPaymets.Database.CompiledModels;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Contrib.WaitAndRetry;
 using Polly.Extensions.Http;
 
+[module: DapperAot]
+
 var builder = WebApplication.CreateSlimBuilder(args);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+});
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -25,6 +40,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<ApiDbContext>(options =>
 {
     options.UseNpgsql(connectionString);
+    options.UseModel(ApiDbContextModel.Instance);
 });
 
 //services
@@ -71,19 +87,20 @@ builder.Services.AddHttpClient("PaymentsExternal", (serviceProvider, client) =>
 
 var app = builder.Build();
 
-var paymentApis = app.MapGroup("payments");
 
-paymentApis.MapPost("/", (PaymentPayloadModel payment, PaymentChannel channel) => 
+app.MapPost("/payments", (PaymentPayloadModel payment, PaymentChannel channel) => 
 { 
     channel.Writer.WriteAsync(payment);
     return Results.Created();
 });
 
-paymentApis.MapGet("/payments-summary", async (DateTime from, DateTime to, IPaymentService service) => 
+app.MapGet("/payments-summary", async (DateTime from, DateTime to, IPaymentService service) => 
 {
     var res = await service.GetPaymentsSummaryAsync(from, to);
     return Results.Ok(res);
 });
+
+app.UseCors();
 
 app.Run();
 
