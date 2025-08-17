@@ -27,58 +27,46 @@ namespace ApiPaymets.Clients.Impl
 
         public async Task<PaymentRequisitionResult> SendPaymentForExternalService(PaymentPayloadModel payment)
         {
-            _logger.LogInformation("Initializing payment request for {correlationId}", payment.correlationId);
-
             var requestedAt = DateTime.UtcNow;
             var payload = new PaymentPayloadRequestModel(payment.correlationId, payment.amount, requestedAt);
+            _logger.LogInformation("Attempting to send payment {correlationId} via default route.", payment.correlationId);
 
-            // Tentativa com o default route
             try
             {
-                var sucess = await PostPaymentAsync("PaymentsExternal", payload);
-                if (sucess)
-                {
-                    _logger.LogInformation("Payment {correlationId} send for default route", payment.correlationId);
-                    return new PaymentRequisitionResult(true, false, requestedAt);
-                }
-            }
-            catch (Exception ex) 
-            {
-                _logger.LogError(ex, "Send {correlationId} payment failed in default route ", payment.correlationId);
-            }
+                var defaultClient = _httpClientFactory.CreateClient("PaymentsExternal");
 
-            // Tentativa com o fallback route
-            try
-            {
-                var clientFallback = _httpClientFactory.CreateClient();
-                var sucess = await PostPaymentAsync(clientFallback, _settings.UrlFallback, payload);
-                if (sucess)
-                {
-                    _logger.LogInformation("Payment {correlationId} send for fallback route", payment.correlationId);
-                    return new PaymentRequisitionResult(true, true, requestedAt);
-                }
+                var response = await defaultClient.PostAsJsonAsync("/payments", payload, AppJsonSerializerContext.Default.PaymentPayloadRequestModel);
+
+                response.EnsureSuccessStatusCode();
+
+                _logger.LogInformation("Payment {correlationId} sent successfully via default route.", payment.correlationId);
+                return new PaymentRequisitionResult(true, false, requestedAt);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Send {correlationId} payment failed in fallback route ", payment.correlationId);
+                _logger.LogWarning(ex, "Default route failed for {correlationId}. Attempting a single request to the fallback route.", payment.correlationId);
+                return await TryFallbackRouteAsync(payload, requestedAt);
             }
-        
-            // Nenhuma rota deu certo
-            _logger.LogError("Failed Send payment {correlationId}, returning for queue", payment.correlationId.ToString());
-            return new PaymentRequisitionResult(false, false, requestedAt);
         }
 
-        private async Task<bool> PostPaymentAsync(string clientName, PaymentPayloadRequestModel payload)
+        private async Task<PaymentRequisitionResult> TryFallbackRouteAsync(PaymentPayloadRequestModel payload, DateTime requestedAt)
         {
-            var client = _httpClientFactory.CreateClient(clientName);
-            var response = await client.PostAsJsonAsync("/payments", payload, AppJsonSerializerContext.Default.PaymentPayloadRequestModel);
-            return response.IsSuccessStatusCode;
-        }
+            try
+            {
+                // Criamos um cliente 'limpo', sem políticas de resiliência.
+                var fallbackClient = _httpClientFactory.CreateClient();
+                var response = await fallbackClient.PostAsJsonAsync(_settings.UrlFallback + "/payments", payload, AppJsonSerializerContext.Default.PaymentPayloadRequestModel);
 
-        private async Task<bool> PostPaymentAsync(HttpClient client, string url, PaymentPayloadRequestModel payload)
-        {
-            var response = await client.PostAsJsonAsync(url, payload, AppJsonSerializerContext.Default.PaymentPayloadRequestModel);
-            return response.IsSuccessStatusCode;
+                response.EnsureSuccessStatusCode();
+
+                _logger.LogInformation("Payment {correlationId} sent successfully via fallback route.", payload.correlationId);
+                return new PaymentRequisitionResult(true, true, requestedAt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fallback route also failed for {correlationId}. The operation has failed.", payload.correlationId);
+                return new PaymentRequisitionResult(false, false, requestedAt);
+            }
         }
     }
 }
