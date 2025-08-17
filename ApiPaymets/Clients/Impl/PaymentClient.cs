@@ -55,7 +55,7 @@ namespace ApiPaymets.Clients.Impl
                 if (sucess)
                 {
                     _logger.LogInformation("Payment {correlationId} send for fallback route", payment.correlationId);
-                    return new PaymentRequisitionResult(true, false, requestedAt);
+                    return new PaymentRequisitionResult(true, true, requestedAt);
                 }
             }
             catch (Exception ex)

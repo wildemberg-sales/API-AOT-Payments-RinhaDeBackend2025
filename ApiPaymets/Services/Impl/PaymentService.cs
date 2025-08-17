@@ -3,8 +3,6 @@ using ApiPaymets.Database.Entities;
 using ApiPaymets.RequisitonsModels.Responses;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
-using System.Net;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace ApiPayment.Services.Impl
 {
@@ -21,18 +19,37 @@ namespace ApiPayment.Services.Impl
 
         public async Task<bool> CreatePaymentAsync(Payment payment)
         {
+            //try
+            //{
+            //    _context.Payments.Add(payment);
+            //    await _context.SaveChangesAsync();
+            //}
+            //catch (Exception ex)
+            //{
+            //    _logger.LogError($"Error in creation: {ex.Message}");
+            //    return false;
+            //}
+
             try
             {
-                _context.Payments.Add(payment);
-                await _context.SaveChangesAsync();
+                await using var connection = _context.Database.GetDbConnection();
+                var sql = @"
+                    INSERT INTO ""Payments"" (""CorrelationId"", ""Amount"", ""CreatedAt"", ""IsFallback"")
+                    VALUES (@CorrelationId, @Amount, @CreatedAt, @IsFallback);
+                ";
+
+                // Dapper executa o INSERT de forma segura, usando parâmetros.
+                var rowsAffected = await connection.ExecuteAsync(sql, payment);
+
+                return rowsAffected > 0;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error in creation: {ex.Message}");
+                // O Dapper lançará uma exceção se a chave única 'CorrelationId' for violada,
+                // o que mantém sua lógica de idempotência.
+                _logger.LogError(ex, "Falha ao criar pagamento {CorrelationId} com Dapper.", payment.CorrelationId);
                 return false;
             }
-
-            return true;
         }
 
         public async Task<PaymentSummaryResponse> GetPaymentsSummaryAsync(DateTime? from = null, DateTime? to = null)

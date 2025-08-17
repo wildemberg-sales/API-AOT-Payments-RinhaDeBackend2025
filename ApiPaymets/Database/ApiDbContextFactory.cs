@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ApiPaymets.Database.CompiledModels;
 using Microsoft.EntityFrameworkCore.Design;
 
 namespace ApiPaymets.Database
@@ -16,6 +17,7 @@ namespace ApiPaymets.Database
 
             var optionsBuilder = new DbContextOptionsBuilder<ApiDbContext>();
             optionsBuilder.UseNpgsql(connectionString);
+            optionsBuilder.UseModel(ApiDbContextModel.Instance);
 
             return new ApiDbContext(optionsBuilder.Options);
         }
